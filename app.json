@@ -46,8 +46,21 @@
           "savePhotosPermission": "Allow Quiet Goals to save wallpapers to your photos.",
           "isAccessMediaLocationEnabled": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "manifestPlaceholders": {
+              "enableOnBackInvokedCallback": "false"
+            },
+            "extraToolsReplace": "android:enableOnBackInvokedCallback"
+          }
+        }
       ]
-    ],
+    ]
+  }
+},
     "extra": {
       "eas": {
         "projectId": "d2955a47-68e6-4abd-9032-ef0208058bca"
