@@ -43,7 +43,7 @@ export default function App() {
   });
 
   // App State
-  const [view, setView] = useState<'home' | 'create'>('create');
+  const [view, setView] = useState<'home' | 'create'>('home');
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
   const [isRemoteReady, setIsRemoteReady] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>(
@@ -116,7 +116,6 @@ export default function App() {
       const goal = await getActiveGoal();
       if (goal) {
         setActiveGoal(goal);
-        setView('home');
       }
 
       // 2. Fetch Remote Config (Moods/Variants)
