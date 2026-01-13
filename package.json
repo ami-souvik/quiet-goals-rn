@@ -17,6 +17,7 @@
     "expo-media-library": "^18.2.1",
     "expo-status-bar": "~3.0.9",
     "expo-wallpaper-manager": "^1.0.2",
+    "lucide-react-native": "^0.562.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-svg": "^15.15.1",

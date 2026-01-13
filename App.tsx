@@ -11,7 +11,6 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  SafeAreaView,
   BackHandler
 } from 'react-native';
 import { SvgXml } from 'react-native-svg';
@@ -21,6 +20,7 @@ import ViewShot from "react-native-view-shot";
 import { StatusBar } from 'expo-status-bar';
 import * as WallpaperManager from 'expo-wallpaper-manager';
 import { WebView } from 'react-native-webview';
+import { Save, House, Lock } from 'lucide-react-native';
 
 // Local Fallbacks (used while loading or if offline)
 import { MOODS as LOCAL_MOODS, getMood as getLocalMood } from './lib/moods';
@@ -28,6 +28,7 @@ import { VARIANTS as LOCAL_VARIANTS, getVariant as getLocalVariant } from './lib
 import { fetchMoodImage } from './lib/images';
 import { ActiveGoal, saveActiveGoal, getActiveGoal } from './lib/storage';
 import { Toast } from './components/Toast';
+import { generateSvg } from './lib/svg';
 
 // UPDATE THIS URL TO YOUR DEPLOYED NEXT.JS APP URL
 // For Android Emulator, use 'http://10.0.2.2:3000' if running locally
@@ -166,7 +167,7 @@ export default function App() {
   const handleWebViewMessage = (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'SVG_GENERATED') {
+      if (data.type === 'SVG_GENERATED' && data.payload && typeof data.payload === 'string') {
         setSvgXml(data.payload);
       }
     } catch (e) {
@@ -181,9 +182,35 @@ export default function App() {
     }
   }, [moodId]);
 
+  // Local Generation Fallback (Only run if remote is NOT ready)
+  const refreshSvg = useCallback(async () => {
+    if (isRemoteReady) return; // Skip local if remote is active
+    const xml = generateSvg({
+      text: text || 'Quiet Goals',
+      moodId,
+      variantId,
+      width,
+      height,
+      backgroundImage: bgMode === 'image' ? backgroundImage : null
+    });
+    setSvgXml(xml);
+  }, [text, moodId, variantId, bgMode, backgroundImage, width, height, isRemoteReady]);
+
+  // Trigger Local Generation
+  useEffect(() => {
+    if (fontsLoaded && !isRemoteReady) {
+      refreshSvg();
+    }
+  }, [fontsLoaded, isRemoteReady, refreshSvg]);
+
   const handleFetchImage = async (force = false) => {
     if (loadingImage) return;
-    if (!force && backgroundImage) return;
+
+    // If we already have an image and aren't forcing a refresh, just switch mode
+    if (!force && backgroundImage) {
+      setBgMode('image');
+      return;
+    }
 
     setLoadingImage(true);
     try {
@@ -257,7 +284,7 @@ export default function App() {
           await saveActiveGoal(newGoal);
           setActiveGoal(newGoal);
 
-          const location = type === 'both' ? 'Wallpaper' : type === 'lock' ? 'Lockscreen' : 'Homescreen';
+          const location = type === 'both' ? 'Homescreen & Lockscreen' : type === 'lock' ? 'Lockscreen' : 'Homescreen';
           showToast(`${location} updated!`, 'success');
         } else {
           showToast('Failed to update wallpaper', 'error');
@@ -277,169 +304,77 @@ export default function App() {
   }
 
   // --- HOME VIEW ---
-
   if (view === 'home') {
-
     return (
-
       <View style={styles.homeContainer}>
-
         <StatusBar style="dark" />
-
         <Toast
-
           visible={toast.visible}
-
           message={toast.message}
-
           type={toast.type}
-
           onHide={() => setToast(prev => ({ ...prev, visible: false }))}
-
         />
-
         <View style={styles.homeContent}>
-
-
-
           {/* Header & Intro */}
-
           <View style={styles.homeHeader}>
-
             <Text style={styles.appName}>Quiet Goals</Text>
-
             <Text style={styles.appTagline}>Turn your most important milestone into a calm, private wallpaper.</Text>
-
             <Text style={styles.appDescription}>
-
               No notifications. No performance tracking. Just a gentle reminder of what you’re working toward.
-
             </Text>
-
           </View>
-
-
-
           <Text style={styles.sectionTitle}>YOUR ACTIVE GOAL</Text>
-
-
-
           {activeGoal ? (
-
             <TouchableOpacity activeOpacity={0.95} onPress={handleCardPress}>
-
               <View style={styles.card}>
-
                 <View style={styles.cardHeader}>
-
                   <Text style={styles.cardValueMain}>{activeGoal.text}</Text>
-
                 </View>
-
-
-
                 <View style={styles.cardDivider} />
-
-
-
                 <View style={styles.cardRow}>
-
                   <View>
-
                     <Text style={styles.cardLabel}>MOOD</Text>
-
                     <View style={[styles.moodBadge, { backgroundColor: getMood(activeGoal.moodId).bgColor }]}>
-
                       <Text style={[styles.moodText, { color: getMood(activeGoal.moodId).textColor }]}>
-
                         {getMood(activeGoal.moodId).label}
-
                       </Text>
-
                     </View>
-
                   </View>
-
-
-
                   <View>
-
                     <Text style={styles.cardLabel}>LAYOUT</Text>
-
                     <Text style={styles.cardValue}>{getVariant(activeGoal.variantId).label}</Text>
-
                   </View>
-
                 </View>
-
-
-
                 <View style={styles.cardRow}>
-
                   <View>
-
                     <Text style={styles.cardLabel}>BACKGROUND</Text>
-
                     <Text style={styles.cardValue}>{activeGoal.bgMode === 'image' ? 'Image' : 'Procedural'}</Text>
-
                   </View>
-
                   <View>
-
                     <Text style={styles.cardLabel}>SET ON</Text>
-
                     <Text style={styles.cardValue}>{new Date(activeGoal.timestamp).toLocaleDateString()}</Text>
-
                   </View>
-
                 </View>
-
-
-
                 <Text style={styles.cardHint}>Tap to edit or preview</Text>
-
               </View>
-
             </TouchableOpacity>
-
           ) : (
-
             <View style={styles.emptyState}>
-
               <Text style={styles.emptyText}>No active goal set.</Text>
-
             </View>
-
           )}
-
-
-
           <TouchableOpacity
-
             style={styles.createButton}
-
             onPress={() => setView('create')}
-
           >
-
             <Text style={styles.createButtonText}>
-
               {activeGoal ? 'Create New Goal' : 'Get Started'}
-
             </Text>
-
           </TouchableOpacity>
-
-
-
           <Text style={styles.footerText}>Designed for focus. Built with silence.</Text>
-
         </View>
-
       </View>
-
     );
-
   }
 
   // --- CREATOR VIEW ---
@@ -460,7 +395,6 @@ export default function App() {
           source={{ uri: `${WEB_APP_URL}/headless` }}
           onMessage={handleWebViewMessage}
           onLoad={() => {
-            console.log('Headless Generator Loaded');
             setIsRemoteReady(true);
           }}
           onError={(e) => console.warn('WebView Error', e.nativeEvent)}
@@ -479,7 +413,7 @@ export default function App() {
           style={{ width, height }}
         >
           {/* Show loader until remote SVG is ready, unless we have an old one */}
-          {svgXml ? (
+          {svgXml && typeof svgXml === 'string' ? (
             <SvgXml xml={svgXml} width={width} height={height} />
           ) : (
             <View style={{ width, height, backgroundColor: getMood(moodId).bgColor, alignItems: 'center', justifyContent: 'center' }}>
@@ -496,20 +430,21 @@ export default function App() {
           style={styles.backButton}
           onPress={() => setView('home')}
         >
-          <Text style={styles.backButtonText}>← Home</Text>
+          <Text style={styles.backButtonText}>← BACK</Text>
         </TouchableOpacity>
       )}
 
       {/* Controls Overlay */}
       {controlsVisible && (
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : -40}
           style={styles.controlsContainer}
         >
           <ScrollView
             style={styles.controls}
-            contentContainerStyle={styles.controlsContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Quiet Goals</Text>
@@ -565,6 +500,10 @@ export default function App() {
                       variantId === v.id && styles.activeVariantChip
                     ]}
                   >
+                    {/* React Native SVG rendering for variant icons if they exist */}
+                    {v.icon && (
+                      <SvgXml xml={v.icon} width={18} height={18} color={variantId === v.id ? '#fff' : '#333'} />
+                    )}
                     <Text style={[styles.chipText, { color: variantId === v.id ? '#fff' : '#333' }]}>
                       {v.label}
                     </Text>
@@ -600,27 +539,26 @@ export default function App() {
 
             {/* Save Buttons */}
             <View style={styles.footer}>
-              <View style={{ flexDirection: 'column', gap: 10 }}>
-                <TouchableOpacity onPress={handleSave} style={[styles.saveButton, { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }]}>
-                  <Text style={[styles.saveButtonText, { color: '#333' }]}>Save to Photos</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <TouchableOpacity onPress={handleSave} style={[styles.saveButton]}>
+                  <Save width={24} height={24} />
                 </TouchableOpacity>
 
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => handleSetWallpaper('screen')} style={[styles.saveButton, { flex: 1 }]}>
-                    <Text style={[styles.saveButtonText, { fontSize: 13 }]}>Set Home</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleSetWallpaper('screen')} style={[styles.saveButton]}>
+                  <House width={24} height={24} />
+                </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => handleSetWallpaper('lock')} style={[styles.saveButton, { flex: 1 }]}>
-                    <Text style={[styles.saveButtonText, { fontSize: 13 }]}>Set Lock</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleSetWallpaper('lock')} style={[styles.saveButton]}>
+                  <Lock width={24} height={24} />
+                </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => handleSetWallpaper('both')} style={[styles.saveButton, { flex: 1, backgroundColor: '#444' }]}>
-                    <Text style={[styles.saveButtonText, { fontSize: 13 }]}>Both</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={() => handleSetWallpaper('both')} style={[styles.saveButton]}>
+                  <House width={20} height={20} />
+                  <Text style={[styles.saveButtonText, { marginHorizontal: 6 }]}>&</Text>
+                  <Lock width={20} height={20} />
+                </TouchableOpacity>
               </View>
             </View>
-
           </ScrollView>
         </KeyboardAvoidingView>
       )}
@@ -799,7 +737,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '400',
     fontSize: 14,
   },
   // Existing Creator Styles
@@ -808,7 +746,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    maxHeight: '60%',
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -823,9 +760,6 @@ const styles = StyleSheet.create({
   },
   controls: {
     padding: 20,
-  },
-  controlsContent: {
-    paddingBottom: 40,
   },
   header: {
     flexDirection: 'row',
@@ -844,7 +778,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 10,
   },
   label: {
     fontSize: 10,
@@ -866,6 +800,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -5,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
@@ -878,6 +814,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   variantChip: {
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingRight: 12,
     backgroundColor: '#fff',
     borderColor: '#eee',
     borderWidth: 1,
@@ -933,14 +873,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   saveButton: {
-    backgroundColor: '#000',
-    paddingVertical: 16,
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 12,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#000',
+    fontSize: 20,
     fontWeight: '600',
     letterSpacing: 0.5,
   }
