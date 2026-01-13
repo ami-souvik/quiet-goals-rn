@@ -47,17 +47,7 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "manifestPlaceholders": {
-              "enableOnBackInvokedCallback": "false"
-            },
-            "extraToolsReplace": "android:enableOnBackInvokedCallback"
-          }
-        }
-      ]
+      "./with-manifest-fix"
     ],
     "extra": {
       "eas": {
