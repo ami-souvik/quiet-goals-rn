@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  TextInput, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
-  Platform, 
-  Alert, 
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+  Platform,
+  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   SafeAreaView
@@ -19,12 +19,18 @@ import * as MediaLibrary from 'expo-media-library';
 import ViewShot from "react-native-view-shot";
 import { StatusBar } from 'expo-status-bar';
 import * as WallpaperManager from 'expo-wallpaper-manager';
+import { WebView } from 'react-native-webview';
 
-import { MOODS, getMood } from './lib/moods';
-import { VARIANTS, getVariant } from './lib/variants';
-import { generateSvg } from './lib/svg';
+// Local Fallbacks (used while loading or if offline)
+import { MOODS as LOCAL_MOODS, getMood as getLocalMood } from './lib/moods';
+import { VARIANTS as LOCAL_VARIANTS, getVariant as getLocalVariant } from './lib/variants';
 import { fetchMoodImage } from './lib/images';
 import { ActiveGoal, saveActiveGoal, getActiveGoal } from './lib/storage';
+
+// UPDATE THIS URL TO YOUR DEPLOYED NEXT.JS APP URL
+// For Android Emulator, use 'http://10.0.2.2:3000' if running locally
+// For Physical Device, use your computer's local IP 'http://192.168.x.x:3000'
+const WEB_APP_URL = 'https://quiet-goals.qurtesy.com';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -36,6 +42,11 @@ export default function App() {
   // App State
   const [view, setView] = useState<'home' | 'create'>('create');
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
+  const [isRemoteReady, setIsRemoteReady] = useState(false);
+
+  // Configuration (Remote with Local Fallback)
+  const [moods, setMoods] = useState<any>(LOCAL_MOODS);
+  const [variants, setVariants] = useState<any>(LOCAL_VARIANTS);
 
   // Creator State
   const [text, setText] = useState('Quiet Goals');
@@ -48,37 +59,78 @@ export default function App() {
   const [loadingImage, setLoadingImage] = useState(false);
 
   const viewShotRef = useRef<any>(null);
+  const webViewRef = useRef<WebView>(null);
   const { width, height } = Dimensions.get('window');
 
-  // Load active goal on startup
+  // Helpers to get current config object safely
+  const getMood = (id: string) => moods[id] || moods['calm'] || LOCAL_MOODS['calm'];
+  const getVariant = (id: string) => variants[id] || variants['center-soft'] || LOCAL_VARIANTS['center-soft'];
+
+  // Load active goal & fetch remote config on startup
   useEffect(() => {
-    const loadGoal = async () => {
+    const init = async () => {
+      // 1. Load Local Goal
       const goal = await getActiveGoal();
       if (goal) {
         setActiveGoal(goal);
         setView('home');
       }
+
+      // 2. Fetch Remote Config (Moods/Variants)
+      try {
+        const res = await fetch(`${WEB_APP_URL}/api/config`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.moods) setMoods(data.moods);
+          if (data.variants) setVariants(data.variants);
+          console.log('Remote config loaded');
+        }
+      } catch (e) {
+        console.warn('Failed to load remote config, using fallback:', e);
+      }
     };
-    loadGoal();
+    init();
   }, []);
 
-  const refreshSvg = useCallback(async () => {
-    const xml = generateSvg({
-      text: text || 'Quiet Goals',
-      moodId,
-      variantId,
-      width,
-      height,
-      backgroundImage: bgMode === 'image' ? backgroundImage : null
-    });
-    setSvgXml(xml);
+  // Request SVG generation from WebView
+  const requestSvgGeneration = useCallback(() => {
+    if (!webViewRef.current) return;
+
+    const payload = {
+      type: 'GENERATE_SVG',
+      payload: {
+        text: text || 'Quiet Goals',
+        moodId,
+        variantId,
+        width,
+        height,
+        backgroundImage: bgMode === 'image' ? backgroundImage : null
+      }
+    };
+
+    webViewRef.current.postMessage(JSON.stringify(payload));
   }, [text, moodId, variantId, bgMode, backgroundImage, width, height]);
 
+  // Trigger generation when inputs change
   useEffect(() => {
-    if (fontsLoaded) {
-      refreshSvg();
+    if (fontsLoaded && isRemoteReady) {
+      // Debounce slightly
+      const t = setTimeout(requestSvgGeneration, 100);
+      return () => clearTimeout(t);
     }
-  }, [fontsLoaded, refreshSvg]);
+  }, [fontsLoaded, isRemoteReady, requestSvgGeneration]);
+
+  // Handle messages from WebView (Generated SVG)
+  const handleWebViewMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'SVG_GENERATED') {
+        setSvgXml(data.payload);
+      }
+    } catch (e) {
+      console.error('WebView message parse error', e);
+    }
+  };
 
   // Fetch image when mood changes if in image mode
   useEffect(() => {
@@ -119,9 +171,8 @@ export default function App() {
 
   const handleSave = async () => {
     try {
-      // Request write-only permissions to avoid asking for Audio/Read permissions that might be missing in Manifest
       const permission = await MediaLibrary.requestPermissionsAsync(true);
-      
+
       if (permission.status !== 'granted') {
         Alert.alert('Permission needed', 'Please allow access to save the wallpaper to your gallery.');
         return;
@@ -142,33 +193,30 @@ export default function App() {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
         const uri = await viewShotRef.current.capture();
-        
+
         if (Platform.OS === 'ios') {
-            Alert.alert('iOS Restriction', 'iOS does not allow apps to set wallpaper directly. Please "Save" to photos and set it manually.');
-            return;
+          Alert.alert('iOS Restriction', 'iOS does not allow apps to set wallpaper directly. Please "Save" to photos and set it manually.');
+          return;
         }
 
-        // expo-wallpaper-manager
-        // Kotlin module expects: { uri: string, type: 'lock' | 'screen' | 'both' }
         const res = WallpaperManager.setWallpaper({ uri, type: 'both' });
-        
+
         if (res === 'success') {
-             // Save to local storage
-             const newGoal: ActiveGoal = {
-               text,
-               moodId,
-               variantId,
-               bgMode,
-               backgroundImage,
-               timestamp: Date.now()
-             };
-             await saveActiveGoal(newGoal);
-             setActiveGoal(newGoal);
-             
-             Alert.alert('Success', 'Wallpaper updated!');
-             // Ideally navigate back to home, but let user choose
+          // Save to local storage
+          const newGoal: ActiveGoal = {
+            text,
+            moodId,
+            variantId,
+            bgMode,
+            backgroundImage,
+            timestamp: Date.now()
+          };
+          await saveActiveGoal(newGoal);
+          setActiveGoal(newGoal);
+
+          Alert.alert('Success', 'Wallpaper updated!');
         } else {
-             Alert.alert('Error', 'Failed: ' + res);
+          Alert.alert('Error', 'Failed: ' + res);
         }
       }
     } catch (e) {
@@ -192,42 +240,42 @@ export default function App() {
         <StatusBar style="dark" />
         <View style={styles.homeContent}>
           <Text style={styles.homeTitle}>Active Goal</Text>
-          
+
           {activeGoal ? (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardLabel}>MILESTONE</Text>
                 <Text style={styles.cardValueMain}>{activeGoal.text}</Text>
               </View>
-              
+
               <View style={styles.cardDivider} />
-              
+
               <View style={styles.cardRow}>
                 <View>
                   <Text style={styles.cardLabel}>MOOD</Text>
                   <View style={[styles.moodBadge, { backgroundColor: getMood(activeGoal.moodId).bgColor }]}>
-                     <Text style={[styles.moodText, { color: getMood(activeGoal.moodId).textColor }]}>
-                       {getMood(activeGoal.moodId).label}
-                     </Text>
+                    <Text style={[styles.moodText, { color: getMood(activeGoal.moodId).textColor }]}>
+                      {getMood(activeGoal.moodId).label}
+                    </Text>
                   </View>
                 </View>
-                
+
                 <View>
-                   <Text style={styles.cardLabel}>LAYOUT</Text>
-                   <Text style={styles.cardValue}>{getVariant(activeGoal.variantId).label}</Text>
+                  <Text style={styles.cardLabel}>LAYOUT</Text>
+                  <Text style={styles.cardValue}>{getVariant(activeGoal.variantId).label}</Text>
                 </View>
               </View>
 
-               <View style={styles.cardRow}>
-                 <View>
-                    <Text style={styles.cardLabel}>BACKGROUND</Text>
-                    <Text style={styles.cardValue}>{activeGoal.bgMode === 'image' ? 'Image' : 'Procedural'}</Text>
-                 </View>
-                 <View>
-                     <Text style={styles.cardLabel}>SET ON</Text>
-                     <Text style={styles.cardValue}>{new Date(activeGoal.timestamp).toLocaleDateString()}</Text>
-                 </View>
-               </View>
+              <View style={styles.cardRow}>
+                <View>
+                  <Text style={styles.cardLabel}>BACKGROUND</Text>
+                  <Text style={styles.cardValue}>{activeGoal.bgMode === 'image' ? 'Image' : 'Procedural'}</Text>
+                </View>
+                <View>
+                  <Text style={styles.cardLabel}>SET ON</Text>
+                  <Text style={styles.cardValue}>{new Date(activeGoal.timestamp).toLocaleDateString()}</Text>
+                </View>
+              </View>
             </View>
           ) : (
             <View style={styles.emptyState}>
@@ -235,7 +283,7 @@ export default function App() {
             </View>
           )}
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.createButton}
             onPress={() => setView('create')}
           >
@@ -252,25 +300,47 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar hidden />
-      
+
+      {/* Hidden WebView for Logic */}
+      <View style={{ height: 0, width: 0, opacity: 0, position: 'absolute' }}>
+        <WebView
+          ref={webViewRef}
+          source={{ uri: `${WEB_APP_URL}/headless` }}
+          onMessage={handleWebViewMessage}
+          onLoad={() => {
+            console.log('Headless Generator Loaded');
+            setIsRemoteReady(true);
+          }}
+          onError={(e) => console.warn('WebView Error', e.nativeEvent)}
+        />
+      </View>
+
       {/* Wallpaper Preview Area - fills screen */}
-      <TouchableOpacity 
-        activeOpacity={1} 
+      <TouchableOpacity
+        activeOpacity={1}
         onPress={() => setControlsVisible(!controlsVisible)}
         style={StyleSheet.absoluteFill}
       >
-        <ViewShot 
-          ref={viewShotRef} 
-          options={{ format: "png", quality: 1.0 }} 
+        <ViewShot
+          ref={viewShotRef}
+          options={{ format: "png", quality: 1.0 }}
           style={{ width, height }}
         >
-          {svgXml ? <SvgXml xml={svgXml} width={width} height={height} /> : <View style={{width, height, backgroundColor: '#F0F4F8'}} />}
+          {/* Show loader until remote SVG is ready, unless we have an old one */}
+          {svgXml ? (
+            <SvgXml xml={svgXml} width={width} height={height} />
+          ) : (
+            <View style={{ width, height, backgroundColor: getMood(moodId).bgColor, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color={getMood(moodId).textColor} />
+              <Text style={{ marginTop: 10, color: getMood(moodId).textColor, fontSize: 10 }}>Connecting to Neural Core...</Text>
+            </View>
+          )}
         </ViewShot>
       </TouchableOpacity>
 
       {/* Back Button (only if we have a home to go back to) */}
       {activeGoal && controlsVisible && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => setView('home')}
         >
@@ -280,12 +350,12 @@ export default function App() {
 
       {/* Controls Overlay */}
       {controlsVisible && (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.controlsContainer}
         >
-          <ScrollView 
-            style={styles.controls} 
+          <ScrollView
+            style={styles.controls}
             contentContainerStyle={styles.controlsContent}
             showsVerticalScrollIndicator={false}
           >
@@ -313,7 +383,7 @@ export default function App() {
             <View style={styles.section}>
               <Text style={styles.label}>MOOD</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                {Object.values(MOODS).map((m) => (
+                {Object.values(moods).map((m: any) => (
                   <TouchableOpacity
                     key={m.id}
                     onPress={() => setMoodId(m.id)}
@@ -333,7 +403,7 @@ export default function App() {
             <View style={styles.section}>
               <Text style={styles.label}>LAYOUT</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
-                {Object.values(VARIANTS).map((v) => (
+                {Object.values(variants).map((v: any) => (
                   <TouchableOpacity
                     key={v.id}
                     onPress={() => setVariantId(v.id)}
@@ -355,7 +425,7 @@ export default function App() {
             <View style={styles.section}>
               <Text style={styles.label}>BACKGROUND</Text>
               <View style={styles.row}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={toggleBgMode}
                   style={[styles.button, bgMode === 'image' ? styles.activeButton : styles.outlineButton]}
                 >
@@ -363,9 +433,9 @@ export default function App() {
                     {bgMode === 'image' ? 'Image Mode' : 'Procedural Mode'}
                   </Text>
                 </TouchableOpacity>
-                
+
                 {bgMode === 'image' && (
-                   <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => handleFetchImage(true)}
                     style={[styles.iconButton]}
                     disabled={loadingImage}
@@ -378,14 +448,14 @@ export default function App() {
 
             {/* Save Button */}
             <View style={styles.footer}>
-              <View style={{flexDirection: 'row', gap: 10}}>
-                  <TouchableOpacity onPress={handleSave} style={[styles.saveButton, {flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd'}]}>
-                    <Text style={[styles.saveButtonText, {color: '#333'}]}>Save to Photos</Text>
-                  </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={handleSave} style={[styles.saveButton, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }]}>
+                  <Text style={[styles.saveButtonText, { color: '#333' }]}>Save to Photos</Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity onPress={handleSetWallpaper} style={[styles.saveButton, {flex: 1}]}>
-                    <Text style={styles.saveButtonText}>Set Wallpaper</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity onPress={handleSetWallpaper} style={[styles.saveButton, { flex: 1 }]}>
+                  <Text style={styles.saveButtonText}>Set Wallpaper</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
