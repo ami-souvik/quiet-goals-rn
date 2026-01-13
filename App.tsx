@@ -26,11 +26,13 @@ import { MOODS as LOCAL_MOODS, getMood as getLocalMood } from './lib/moods';
 import { VARIANTS as LOCAL_VARIANTS, getVariant as getLocalVariant } from './lib/variants';
 import { fetchMoodImage } from './lib/images';
 import { ActiveGoal, saveActiveGoal, getActiveGoal } from './lib/storage';
+import { Toast } from './components/Toast';
 
 // UPDATE THIS URL TO YOUR DEPLOYED NEXT.JS APP URL
 // For Android Emulator, use 'http://10.0.2.2:3000' if running locally
 // For Physical Device, use your computer's local IP 'http://192.168.x.x:3000'
-const WEB_APP_URL = 'https://quiet-goals.qurtesy.com';
+// const WEB_APP_URL = 'https://quiet-goals.qurtesy.com';
+const WEB_APP_URL = 'http://192.168.0.185:3000';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -43,6 +45,13 @@ export default function App() {
   const [view, setView] = useState<'home' | 'create'>('create');
   const [activeGoal, setActiveGoal] = useState<ActiveGoal | null>(null);
   const [isRemoteReady, setIsRemoteReady] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>(
+    {
+      visible: false,
+      message: '',
+      type: 'success',
+    }
+  );
 
   // Configuration (Remote with Local Fallback)
   const [moods, setMoods] = useState<any>(LOCAL_MOODS);
@@ -66,6 +75,10 @@ export default function App() {
   const getMood = (id: string) => moods[id] || moods['calm'] || LOCAL_MOODS['calm'];
   const getVariant = (id: string) => variants[id] || variants['center-soft'] || LOCAL_VARIANTS['center-soft'];
 
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, message, type });
+  };
+
   // Load active goal & fetch remote config on startup
   useEffect(() => {
     const init = async () => {
@@ -83,7 +96,6 @@ export default function App() {
           const data = await res.json();
           if (data.moods) setMoods(data.moods);
           if (data.variants) setVariants(data.variants);
-          console.log('Remote config loaded');
         }
       } catch (e) {
         console.warn('Failed to load remote config, using fallback:', e);
@@ -100,16 +112,16 @@ export default function App() {
       type: 'GENERATE_SVG',
       payload: {
         text: text || 'Quiet Goals',
-        moodId,
-        variantId,
-        width,
-        height,
-        backgroundImage: bgMode === 'image' ? backgroundImage : null
-      }
-    };
-
-    webViewRef.current.postMessage(JSON.stringify(payload));
-  }, [text, moodId, variantId, bgMode, backgroundImage, width, height]);
+                moodId,
+                variantId,
+                width,
+                height,
+                backgroundImage: bgMode === 'image' ? backgroundImage : null,
+                isNative: true
+              }
+            };
+            
+            webViewRef.current.postMessage(JSON.stringify(payload));  }, [text, moodId, variantId, bgMode, backgroundImage, width, height]);
 
   // Trigger generation when inputs change
   useEffect(() => {
@@ -181,14 +193,13 @@ export default function App() {
       if (viewShotRef.current && viewShotRef.current.capture) {
         const uri = await viewShotRef.current.capture();
         await MediaLibrary.saveToLibraryAsync(uri);
-        Alert.alert('Saved!', 'Wallpaper saved to your Photos.');
+        showToast('Wallpaper saved to Photos', 'success');
       }
     } catch (e) {
       console.error('Save error:', e);
-      Alert.alert('Error', 'Failed to save wallpaper.');
+      showToast('Failed to save wallpaper', 'error');
     }
   };
-
   const handleSetWallpaper = async () => {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
@@ -214,17 +225,16 @@ export default function App() {
           await saveActiveGoal(newGoal);
           setActiveGoal(newGoal);
 
-          Alert.alert('Success', 'Wallpaper updated!');
+          showToast('Wallpaper updated!', 'success');
         } else {
-          Alert.alert('Error', 'Failed: ' + res);
+          showToast('Failed to update wallpaper', 'error');
         }
       }
     } catch (e) {
       console.error('Set Wallpaper error:', e);
-      Alert.alert('Error', 'Failed to set wallpaper.');
+      showToast('Error setting wallpaper', 'error');
     }
   };
-
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
@@ -238,6 +248,12 @@ export default function App() {
     return (
       <View style={styles.homeContainer}>
         <StatusBar style="dark" />
+        <Toast
+          visible={toast.visible}
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast(prev => ({ ...prev, visible: false }))}
+        />
         <View style={styles.homeContent}>
           <Text style={styles.homeTitle}>Active Goal</Text>
 
@@ -300,47 +316,53 @@ export default function App() {
   return (
     <View style={styles.container}>
       <StatusBar hidden />
-
+      <Toast 
+        visible={toast.visible} 
+        message={toast.message} 
+        type={toast.type}
+        onHide={() => setToast(prev => ({ ...prev, visible: false }))} 
+      />
+      
       {/* Hidden WebView for Logic */}
       <View style={{ height: 0, width: 0, opacity: 0, position: 'absolute' }}>
         <WebView
-          ref={webViewRef}
-          source={{ uri: `${WEB_APP_URL}/headless` }}
-          onMessage={handleWebViewMessage}
-          onLoad={() => {
-            console.log('Headless Generator Loaded');
-            setIsRemoteReady(true);
-          }}
-          onError={(e) => console.warn('WebView Error', e.nativeEvent)}
+            ref={webViewRef}
+            source={{ uri: `${WEB_APP_URL}/headless` }}
+            onMessage={handleWebViewMessage}
+            onLoad={() => {
+                console.log('Headless Generator Loaded');
+                setIsRemoteReady(true);
+            }}
+            onError={(e) => console.warn('WebView Error', e.nativeEvent)}
         />
       </View>
 
       {/* Wallpaper Preview Area - fills screen */}
-      <TouchableOpacity
-        activeOpacity={1}
+      <TouchableOpacity 
+        activeOpacity={1} 
         onPress={() => setControlsVisible(!controlsVisible)}
         style={StyleSheet.absoluteFill}
       >
-        <ViewShot
-          ref={viewShotRef}
-          options={{ format: "png", quality: 1.0 }}
+        <ViewShot 
+          ref={viewShotRef} 
+          options={{ format: "png", quality: 1.0 }} 
           style={{ width, height }}
         >
           {/* Show loader until remote SVG is ready, unless we have an old one */}
           {svgXml ? (
-            <SvgXml xml={svgXml} width={width} height={height} />
+              <SvgXml xml={svgXml} width={width} height={height} />
           ) : (
-            <View style={{ width, height, backgroundColor: getMood(moodId).bgColor, alignItems: 'center', justifyContent: 'center' }}>
-              <ActivityIndicator color={getMood(moodId).textColor} />
-              <Text style={{ marginTop: 10, color: getMood(moodId).textColor, fontSize: 10 }}>Connecting to Neural Core...</Text>
-            </View>
+              <View style={{width, height, backgroundColor: getMood(moodId).bgColor, alignItems: 'center', justifyContent: 'center'}}>
+                 <ActivityIndicator color={getMood(moodId).textColor} />
+                 <Text style={{marginTop: 10, color: getMood(moodId).textColor, fontSize: 10}}>Connecting to Neural Core...</Text>
+              </View>
           )}
         </ViewShot>
       </TouchableOpacity>
 
       {/* Back Button (only if we have a home to go back to) */}
       {activeGoal && controlsVisible && (
-        <TouchableOpacity
+        <TouchableOpacity 
           style={styles.backButton}
           onPress={() => setView('home')}
         >
@@ -350,12 +372,12 @@ export default function App() {
 
       {/* Controls Overlay */}
       {controlsVisible && (
-        <KeyboardAvoidingView
+        <KeyboardAvoidingView 
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.controlsContainer}
         >
-          <ScrollView
-            style={styles.controls}
+          <ScrollView 
+            style={styles.controls} 
             contentContainerStyle={styles.controlsContent}
             showsVerticalScrollIndicator={false}
           >
@@ -425,7 +447,7 @@ export default function App() {
             <View style={styles.section}>
               <Text style={styles.label}>BACKGROUND</Text>
               <View style={styles.row}>
-                <TouchableOpacity
+                <TouchableOpacity 
                   onPress={toggleBgMode}
                   style={[styles.button, bgMode === 'image' ? styles.activeButton : styles.outlineButton]}
                 >
@@ -433,9 +455,9 @@ export default function App() {
                     {bgMode === 'image' ? 'Image Mode' : 'Procedural Mode'}
                   </Text>
                 </TouchableOpacity>
-
+                
                 {bgMode === 'image' && (
-                  <TouchableOpacity
+                   <TouchableOpacity 
                     onPress={() => handleFetchImage(true)}
                     style={[styles.iconButton]}
                     disabled={loadingImage}
@@ -448,14 +470,14 @@ export default function App() {
 
             {/* Save Button */}
             <View style={styles.footer}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity onPress={handleSave} style={[styles.saveButton, { flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }]}>
-                  <Text style={[styles.saveButtonText, { color: '#333' }]}>Save to Photos</Text>
-                </TouchableOpacity>
+              <View style={{flexDirection: 'row', gap: 10}}>
+                  <TouchableOpacity onPress={handleSave} style={[styles.saveButton, {flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd'}]}>
+                    <Text style={[styles.saveButtonText, {color: '#333'}]}>Save to Photos</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity onPress={handleSetWallpaper} style={[styles.saveButton, { flex: 1 }]}>
-                  <Text style={styles.saveButtonText}>Set Wallpaper</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity onPress={handleSetWallpaper} style={[styles.saveButton, {flex: 1}]}>
+                    <Text style={styles.saveButtonText}>Set Wallpaper</Text>
+                  </TouchableOpacity>
               </View>
             </View>
 
