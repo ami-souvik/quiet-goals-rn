@@ -30,11 +30,7 @@ import { ActiveGoal, saveActiveGoal, getActiveGoal } from './lib/storage';
 import { Toast } from './components/Toast';
 import { generateSvg } from './lib/svg';
 
-// UPDATE THIS URL TO YOUR DEPLOYED NEXT.JS APP URL
-// For Android Emulator, use 'http://10.0.2.2:3000' if running locally
-// For Physical Device, use your computer's local IP 'http://192.168.x.x:3000'
-const WEB_APP_URL = 'https://quiet-goals.qurtesy.com';
-// const WEB_APP_URL = 'http://192.168.0.185:3000';
+const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL;
 
 export default function App() {
   const [fontsLoaded] = useFonts({
