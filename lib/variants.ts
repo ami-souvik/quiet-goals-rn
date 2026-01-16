@@ -3,7 +3,7 @@ export interface Variant {
   label: string;
   verticalAlign: 'center' | 'bottom' | 'top';
   fontScale: number; // Multiplier relative to screen width
-  fontWeight: number;
+  fontWeight: "normal" | "bold";
   opacity: number;
   letterSpacing: string;
   offsetY: number; // % of height
@@ -13,10 +13,10 @@ export interface Variant {
 export const VARIANTS: Record<string, Variant> = {
   'center-soft': {
     id: 'center-soft',
-    label: 'Center Soft',
+    label: 'Soft',
     verticalAlign: 'center',
     fontScale: 1.0, 
-    fontWeight: 400,
+    fontWeight: "normal",
     opacity: 0.9,
     letterSpacing: '0.02em',
     offsetY: 0,
@@ -24,10 +24,10 @@ export const VARIANTS: Record<string, Variant> = {
   },
   'center-bold': {
     id: 'center-bold',
-    label: 'Center Bold',
+    label: 'Bold',
     verticalAlign: 'center',
     fontScale: 1.2,
-    fontWeight: 700,
+    fontWeight: "bold",
     opacity: 1.0,
     letterSpacing: '0.05em',
     offsetY: 0,
@@ -35,10 +35,10 @@ export const VARIANTS: Record<string, Variant> = {
   },
   'bottom-subtle': {
     id: 'bottom-subtle',
-    label: 'Bottom Subtle',
+    label: 'Subtle',
     verticalAlign: 'bottom',
     fontScale: 0.8,
-    fontWeight: 400,
+    fontWeight: "normal",
     opacity: 0.8,
     letterSpacing: '0.05em',
     offsetY: -15, // Lift up by 15%
@@ -46,10 +46,10 @@ export const VARIANTS: Record<string, Variant> = {
   },
   'top-minimal': {
     id: 'top-minimal',
-    label: 'Top Minimal',
+    label: 'Minimal',
     verticalAlign: 'top',
     fontScale: 0.7,
-    fontWeight: 400,
+    fontWeight: "normal",
     opacity: 0.85,
     letterSpacing: '0.1em',
     offsetY: 15, // Push down by 15%

@@ -4,6 +4,7 @@ export interface ActiveGoal {
   text: string;
   moodId: string;
   variantId: string;
+  fontSizeScale: number;
   bgMode: 'procedural' | 'image';
   backgroundImage: string | null;
   timestamp: number;

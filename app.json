@@ -25,7 +25,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.qurtesy.quietgoals",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
@@ -39,6 +39,21 @@
         {
           "photosPermission": "Allow Quiet Goals to save wallpapers to your photos.",
           "savePhotosPermission": "Allow Quiet Goals to save wallpapers to your photos."
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Oswald-Bold.ttf",
+            "./assets/fonts/Oswald-Regular.ttf",
+            "./assets/fonts/PlayfairDisplay-Regular.ttf",
+            "./assets/fonts/PlayfairDisplay-Bold.ttf",
+            "./assets/fonts/Roboto-Regular.ttf",
+            "./assets/fonts/Roboto-Bold.ttf",
+            "./assets/fonts/Raleway-Regular.ttf",
+            "./assets/fonts/Raleway-Bold.ttf"
+          ]
         }
       ],
       "./with-manifest-fix"

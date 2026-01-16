@@ -10,6 +10,7 @@ interface GenerateSvgParams {
   width: number;
   height: number;
   backgroundImage?: string | null;
+  fontSizeScale?: number;
 }
 
 export function generateSvg({
@@ -18,7 +19,8 @@ export function generateSvg({
   variantId,
   width,
   height,
-  backgroundImage = null
+  backgroundImage = null,
+  fontSizeScale = 1.0
 }: GenerateSvgParams): string {
   const mood = getMood(moodId);
   const variant = getVariant(variantId);
@@ -27,7 +29,7 @@ export function generateSvg({
   const isMobile = width < height;
 
   // Calculate font size
-  const fontSize = calculateFontSize(width, isMobile, variant.fontScale) * mood.scalingFactor;
+  const fontSize = calculateFontSize(width, isMobile, variant.fontScale) * mood.scalingFactor * fontSizeScale;
   const lineHeight = fontSize * (variant.lineHeight || 1.4);
 
   // Prepare text

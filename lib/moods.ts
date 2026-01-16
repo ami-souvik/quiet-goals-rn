@@ -27,13 +27,12 @@ export interface ImageTuning {
 export interface Mood {
   id: string;
   label: string;
-  bgColor: string; // Fallback
+  bgColor: string;
   textColor: string;
   background: MoodBackground;
   image: ImageTuning;
 
-  fontFamily: string; // Simplified for RN
-  fontFile: string;
+  fontFamily: string;
   uppercase: boolean;
   scalingFactor: number;
 }
@@ -65,8 +64,7 @@ export const MOODS: Record<string, Mood> = {
       searchQuery: 'mist fog white texture sky'
     },
 
-    fontFamily: 'Roboto-Regular', // Use the loaded font name
-    fontFile: 'Roboto-Regular.ttf',
+    fontFamily: 'Roboto-Regular',
     uppercase: false,
     scalingFactor: 1.0,
   },
@@ -97,8 +95,7 @@ export const MOODS: Record<string, Mood> = {
       searchQuery: 'abstract geometric minimal white grey'
     },
 
-    fontFamily: 'Roboto-Regular',
-    fontFile: 'Roboto-Regular.ttf',
+    fontFamily: 'Raleway-Regular',
     uppercase: false,
     scalingFactor: 0.85,
   },
@@ -131,7 +128,6 @@ export const MOODS: Record<string, Mood> = {
     },
 
     fontFamily: 'PlayfairDisplay-Regular',
-    fontFile: 'PlayfairDisplay-Regular.ttf',
     uppercase: false,
     scalingFactor: 1.15,
   },
@@ -163,7 +159,6 @@ export const MOODS: Record<string, Mood> = {
     },
 
     fontFamily: 'Oswald-Bold',
-    fontFile: 'Oswald-Bold.ttf',
     uppercase: true,
     scalingFactor: 1.6,
   },
