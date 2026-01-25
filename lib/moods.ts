@@ -64,7 +64,7 @@ export const MOODS: Record<string, Mood> = {
       searchQuery: 'mist fog white texture sky'
     },
 
-    fontFamily: 'Roboto-Regular',
+    fontFamily: 'OpenSans-Regular',
     uppercase: false,
     scalingFactor: 1.0,
   },

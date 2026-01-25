@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.85)',
     marginHorizontal: 10,
-    marginBottom: Platform.OS === 'ios' ? 0 : 10,
+    marginBottom: Platform.OS === 'ios' ? 0 : 0,
     borderRadius: 32,
     paddingVertical: 6,
     paddingHorizontal: 16,

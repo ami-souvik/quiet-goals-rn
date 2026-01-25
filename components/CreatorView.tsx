@@ -102,7 +102,7 @@ export const CreatorView: React.FC<CreatorViewProps> = ({
         return isBold ? 'Raleway-Bold' : 'Raleway-Regular';
       case 'calm':
       default:
-        return isBold ? 'Roboto-Bold' : 'Roboto-Regular';
+        return isBold ? 'OpenSans-Bold' : 'OpenSans-Regular';
     }
   };
 
